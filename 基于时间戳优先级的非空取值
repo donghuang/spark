@@ -1,0 +1,83 @@
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.{SparkConf, SparkContext}
+import scala.util.control._
+
+/*文件数据样式
+342103199010013701,小明,13866128888,安徽合肥,20161120
+342103199010013701,,,安徽阜阳,20171120,
+342103199010013701,小小,,江苏南京,20180101
+342103199010013701,,,江苏苏州,20180202
+999999999999999999,刘汗,99999999999,中国北京,20180601
+*/
+case class Khxx(id: String,
+                name: String,
+                sjhm: String,
+                hj: String,
+                gxsj: String)
+
+object sparkRddtest {
+  def main(args: Array[String]): Unit = {
+    val conf = new SparkConf().setAppName("hivetest").setMaster("local")
+      //setMaster("spark://192.168.137.31:7077")
+      .set("spark.executor.memory", "400m")
+
+    val sc = new SparkContext(conf)
+    val linecnt = sc.accumulator(0) //创建累加器Accumulator[Int]并初始化为0
+    val khxx = sc.textFile("hdfs://cdh1:8020/user/hive/warehouse/donghuang.db/khxx/khxx.txt")
+      .map(x => {
+        linecnt += 1 //累加器的使用
+        x.split(",")
+      })
+      .map(x => (x(0), Khxx(x(0), x(1), x(2), x(3), x(4))))
+    //groupByKey实现字段的时间戳优先级非空取值
+    val res = khxx.groupByKey().map { x =>
+      val Khxxs = x._2.toArray.sortBy(x => x.gxsj)(Ordering.String.reverse)
+      var id: String = ""
+      var name: String = ""
+      var sjhm: String = ""
+      var hj: String = ""
+      var gxsj: String = ""
+      val loop = new Breaks //break 跳出循环
+      loop.breakable(
+        Khxxs.foreach(
+          r => {
+            if (!r.id.isEmpty && id.isEmpty) id = r.id
+            if (!r.name.isEmpty && name.isEmpty) name = r.name
+            if (!r.sjhm.isEmpty && sjhm.isEmpty) sjhm = r.sjhm
+            if (!r.hj.isEmpty && hj.isEmpty) hj = r.hj
+            if (!r.gxsj.isEmpty && gxsj.isEmpty) gxsj = r.gxsj
+            if (!id.isEmpty && !name.isEmpty && !sjhm.isEmpty && !hj.isEmpty && !gxsj.isEmpty) loop.break
+          }
+        )
+      )
+      Khxx(id, name, sjhm, hj, gxsj)
+    }
+
+    res.collect.foreach(println)
+    println("===============================================================")
+    println("linecnt is  " + linecnt)
+
+    //reduceByKey实现字段的时间戳优先级非空取值
+    val res2 = khxx.reduceByKey { (khxx1, khxx2) =>
+      var id = if (khxx1.gxsj <= khxx2.gxsj && !khxx2.id.isEmpty) khxx2.id else khxx1.id
+      var name = if (khxx1.gxsj <= khxx2.gxsj && !khxx2.name.isEmpty) khxx2.name else khxx1.name
+      var sjhm = if (khxx1.gxsj <= khxx2.gxsj && !khxx2.sjhm.isEmpty) khxx2.sjhm else khxx1.sjhm
+      var hj = if (khxx1.gxsj <= khxx2.gxsj && !khxx2.hj.isEmpty) khxx2.hj else khxx1.hj
+      var gxsj = if (khxx1.gxsj <= khxx2.gxsj && !khxx2.gxsj.isEmpty) khxx2.gxsj else khxx1.gxsj
+      Khxx(id, name, sjhm, hj, gxsj)
+    }
+    res2.collect.foreach(println)
+    println("===============================================================")
+
+    //    val hiveContext=new HiveContext(sc)
+    //    hiveContext.table("donghuang.khxx").registerTempTable("khxx")
+    //    val xx=hiveContext.sql("select id,name,sjhm,hj,gxsj from khxx").groupBy("id").count()
+    //    println("=====================================================")
+    //    xx.foreach(println)
+    //    println("=====================================================")
+    sc.stop()
+
+
+  }
+}
