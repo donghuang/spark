@@ -30,6 +30,10 @@ object sparkRddtest {
         x.split(",")
       })
       .map(x => (x(0), Khxx(x(0), x(1), x(2), x(3), x(4))))
+    //普通去重,取最近的记录
+    val res01=khxx.groupByKey.map(x=>x._2.maxBy(_.gxsj)(Ordering.String.reverse))
+    val res02=khxx.reduceByKey((x,y)=>if(x.gxsj<=y.gxsj) y else x)
+
     //groupByKey实现字段的时间戳优先级非空取值
     val res = khxx.groupByKey().map { x =>
       val Khxxs = x._2.toArray.sortBy(x => x.gxsj)(Ordering.String.reverse)
