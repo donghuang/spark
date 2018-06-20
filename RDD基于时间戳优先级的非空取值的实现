@@ -19,7 +19,6 @@ case class Khxx(id: String,
 object sparkRddtest {
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setAppName("hivetest").setMaster("local")
-      //setMaster("spark://192.168.137.31:7077")
       .set("spark.executor.memory", "400m")
 
     val sc = new SparkContext(conf)
