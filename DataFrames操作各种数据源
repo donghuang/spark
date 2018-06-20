@@ -28,8 +28,8 @@ object sparkSql {
    //读取hive中的表
     val hiveContext = new HiveContext(sc)
     hiveContext.table("donghuang.khxx").registerTempTable("khxx")
-    val xx = hiveContext.sql("select id,name,sjhm,hj,gxsj from khxx").groupBy("id").count()
-    xx.foreach(println)
+    val cx = hiveContext.sql("select id,name,sjhm,hj,gxsj from khxx")
+    cx.foreach(println)
     println("=====================================================")
 
 
@@ -42,6 +42,7 @@ object sparkSql {
     val mysqltbls=sqlContext.read.jdbc(url,"TBLS",Array("TBL_ID>='80'"),prop)
     //DataFrames转换为RDD
     mysqltbls.rdd.map(a=>(a(0),1)).reduceByKey(_+_).foreach(println)
+    mysqltbls.registerTempTable("mysqltbls")
     mysqltbls.show()
     //存储到文件,会生成有很多分片文件,如果mytest文件夹存在会报错
     //mysqltbls.rdd.saveAsTextFile("D:\\donghuang\\test\\src\\main\\resources\\mytest")
@@ -49,7 +50,9 @@ object sparkSql {
     //mysqltbls.write.jdbc(url,"mytest",prop) //mytest表如果存在会报错
     //Accepted modes are 'overwrite', 'append', 'ignore', 'error'.
     mysqltbls.write.mode("append").jdbc(url,"mytest",prop)
+
+    sqlContext.sql("select * from people left join mysqltbls").show() //如果操作hiveContext的khxx,会报表不存在错误
     sc.stop()
-    
+
   }
 }
